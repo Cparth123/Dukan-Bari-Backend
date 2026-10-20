@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase';
 import { config } from '../config/env';
 
-export type StorageFolder = 'stores' | 'products' | 'chat' | 'announcements' | 'profiles' | 'general';
+export type StorageFolder = 'stores' | 'products' | 'chat' | 'announcements' | 'profiles' | 'enquiries' | 'general';
 
 export class SupabaseStorageService {
   private static defaultBucket = config.supabase.storageBucket || 'dukan-bari-storage';
