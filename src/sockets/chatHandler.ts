@@ -108,24 +108,59 @@ export const registerChatHandlers = (io: Server, socket: AuthenticatedSocket) =>
       const storeOwnerId = (conv.stores as any)?.owner_id;
       const recipientId = conv.customer_id === user.id ? storeOwnerId : conv.customer_id;
 
-      // Insert message into Supabase
-      const { data: newMessage, error: msgErr } = await supabaseAdmin
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: user.id,
-          message_type: messageType,
-          content: content || (messageType === 'image' ? 'Photo' : 'Price Quote'),
-          media_url: mediaUrl || null,
-          metadata: metadata || {},
-          is_read: false
-        })
-        .select()
-        .single();
+      // Check if message was already inserted by the HTTP API or if duplicate within 5s
+      let newMessage: any = null;
+      const passedMsgId = (payload as any).messageId || (payload as any).id;
 
-      if (msgErr || !newMessage) {
-        socket.emit('error', { message: 'Failed to save message in database', error: msgErr?.message });
-        return;
+      if (passedMsgId) {
+        const { data: existingMsg } = await supabaseAdmin
+          .from('messages')
+          .select('*, users(full_name, role)')
+          .eq('id', passedMsgId)
+          .maybeSingle();
+        if (existingMsg) {
+          newMessage = existingMsg;
+        }
+      }
+
+      if (!newMessage) {
+        const targetContent = content || (messageType === 'image' ? 'Photo' : 'Price Quote');
+        const { data: recentDup } = await supabaseAdmin
+          .from('messages')
+          .select('*, users(full_name, role)')
+          .eq('conversation_id', conversationId)
+          .eq('sender_id', user.id)
+          .eq('content', targetContent)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const isRecentDuplicate =
+          recentDup && (Date.now() - new Date(recentDup.created_at).getTime() < 5000);
+
+        if (isRecentDuplicate) {
+          newMessage = recentDup;
+        } else {
+          const { data: inserted, error: msgErr } = await supabaseAdmin
+            .from('messages')
+            .insert({
+              conversation_id: conversationId,
+              sender_id: user.id,
+              message_type: messageType,
+              content: targetContent,
+              media_url: mediaUrl || null,
+              metadata: metadata || {},
+              is_read: false
+            })
+            .select('*, users(full_name, role)')
+            .single();
+
+          if (msgErr || !inserted) {
+            socket.emit('error', { message: 'Failed to save message in database', error: msgErr?.message });
+            return;
+          }
+          newMessage = inserted;
+        }
       }
 
       const room = `conversation:${conversationId}`;

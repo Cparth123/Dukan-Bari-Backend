@@ -17,7 +17,7 @@ export class SupabaseStorageService {
 
     try {
       const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
-      
+
       if (listError) {
         console.warn(`[Supabase Storage] Notice listing buckets: ${listError.message}`);
       }
