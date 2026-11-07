@@ -183,7 +183,7 @@ class ConversationModel {
         }
       `;
       const res = await executeDataConnect(q, { id: toUUID(targetId) });
-      if (res.data?.conversations && res.data.conversations.length > 0) {
+      if (Array.isArray(res.data?.conversations)) {
         const list = [];
         for (const c of res.data.conversations) {
           const cachedDoc = await db.collection(COLLECTION).doc(String(c.id)).get();

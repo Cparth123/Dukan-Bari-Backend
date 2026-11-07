@@ -59,7 +59,8 @@ class EnquiryModel {
         }
       `;
       const res = await executeDataConnect(q, { id: formattedId });
-      if (res.data?.enquiries && res.data.enquiries.length > 0) {
+      if (Array.isArray(res.data?.enquiries)) {
+        if (res.data.enquiries.length === 0) return null;
         const e = res.data.enquiries[0];
         return {
           id: e.id,

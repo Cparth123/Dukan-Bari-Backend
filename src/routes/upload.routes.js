@@ -2,17 +2,32 @@ const express = require('express');
 const router = express.Router();
 const { uploadImage, uploadVideo, uploadMedia } = require('../middleware/upload');
 const { uploadToCloudinary } = require('../config/cloudinary');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, optionalAuth } = require('../middleware/auth');
 
-// 1. Upload Single Image (Products, Avatars, Store Banners)
-router.post('/image', requireAuth, uploadImage.single('file'), async (req, res) => {
+// 1. Upload Single Image (Products, Avatars, Store Banners) - supports Multipart & Base64 JSON
+router.post('/image', optionalAuth, (req, res, next) => {
+  uploadImage.single('file')(req, res, (err) => {
+    // If multer error (e.g. content-type application/json), continue to check body
+    next();
+  });
+}, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No image file uploaded' });
+    let fileBuffer = null;
+
+    if (req.file && req.file.buffer) {
+      fileBuffer = req.file.buffer;
+    } else if (req.body?.image || req.body?.file || req.body?.base64) {
+      const raw = req.body.image || req.body.file || req.body.base64;
+      const base64Data = raw.includes(';base64,') ? raw.split(';base64,')[1] : raw;
+      fileBuffer = Buffer.from(base64Data, 'base64');
     }
 
-    const { folder = 'dukan-bari/images' } = req.body;
-    const result = await uploadToCloudinary(req.file.buffer, {
+    if (!fileBuffer) {
+      return res.status(400).json({ success: false, error: 'No image file or base64 payload provided' });
+    }
+
+    const folder = req.body?.folder || 'dukan-bari/images';
+    const result = await uploadToCloudinary(fileBuffer, {
       folder,
       resourceType: 'image'
     });

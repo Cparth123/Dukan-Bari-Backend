@@ -48,7 +48,7 @@ class MessageModel {
         }
       `;
       const res = await executeDataConnect(q, { convId: toUUID(conversationId) });
-      if (res.data?.messages && res.data.messages.length > 0) {
+      if (Array.isArray(res.data?.messages)) {
         return res.data.messages.map(m => ({
           id: m.id,
           conversation_id: m.conversationId,

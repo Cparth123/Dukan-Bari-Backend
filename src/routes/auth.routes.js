@@ -223,7 +223,7 @@ router.get('/me', requireAuth, async (req, res) => {
 router.put('/profile', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { full_name, phone, address, latitude, longitude, avatar_url, store_name, category } = req.body;
+    const { full_name, phone, address, latitude, longitude, avatar_url, store_name, category, banner_url, logo_url } = req.body;
 
     const updates = {};
     if (full_name !== undefined) updates.full_name = String(full_name).trim();
@@ -250,6 +250,8 @@ router.put('/profile', requireAuth, async (req, res) => {
         if (phone !== undefined) storeUpdates.phone = String(phone).trim();
         if (latitude !== undefined) storeUpdates.latitude = Number(latitude);
         if (longitude !== undefined) storeUpdates.longitude = Number(longitude);
+        if (banner_url !== undefined) storeUpdates.banner_url = banner_url;
+        if (logo_url !== undefined) storeUpdates.logo_url = logo_url;
 
         if (Object.keys(storeUpdates).length > 0) {
           updatedStore = await Store.update(store.id, storeUpdates);

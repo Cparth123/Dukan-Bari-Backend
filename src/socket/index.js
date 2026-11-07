@@ -97,9 +97,10 @@ function initSocket(httpServer) {
           senderRole
         }).catch(() => {});
 
-        // 3. Notify store channel and user channel with background alert notification ONLY (not duplicate new_message)
+        // 3. Notify store channel and user channel with background alert notification & live message
         Conversation.findById(conversation_id).then(conv => {
           if (conv) {
+            io.to(`store:${conv.store_id}`).emit('new_message', newMsg);
             io.to(`store:${conv.store_id}`).emit('chat_notification', {
               conversation_id,
               message: newMsg
