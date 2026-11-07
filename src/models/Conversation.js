@@ -116,7 +116,7 @@ class ConversationModel {
           customerId: custUUID,
           storeId: storeUUID
         });
-      } catch (_) {}
+      } catch (_) { }
       return existing;
     }
 
