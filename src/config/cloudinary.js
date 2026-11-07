@@ -20,18 +20,67 @@ if (isConfigured) {
   console.log('[Cloudinary] Notice: Cloudinary credentials not set in .env. Running local file upload fallback.');
 }
 
+// Extract public_id from a Cloudinary URL string
+function extractPublicId(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (!url.includes('cloudinary.com')) return null;
+  // Match path after /upload/ (optional /v12345/) up to extension
+  const match = url.match(/\/upload\/(?:v\d+\/)?([^\.]+)/);
+  return match ? match[1] : null;
+}
+
+// Delete an asset from Cloudinary
+async function deleteFromCloudinary(urlOrPublicId, resourceType = 'image') {
+  if (!isConfigured || !urlOrPublicId) return false;
+  try {
+    const publicId = extractPublicId(urlOrPublicId) || urlOrPublicId;
+    if (!publicId) return false;
+    const res = await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+      invalidate: true
+    });
+    console.log(`[Cloudinary] Deleted asset: ${publicId} (result: ${res.result})`);
+    return res.result === 'ok';
+  } catch (err) {
+    console.warn('[Cloudinary] Delete notice:', err.message);
+    return false;
+  }
+}
+
 // Upload buffer directly to Cloudinary (or local fallback)
-async function uploadToCloudinary(buffer, { folder = 'dukan-bari', resourceType = 'image' } = {}) {
+// If existingUrl, oldUrl, or publicId is passed, OVERWRITES/REPLACES in place instead of creating duplicates
+async function uploadToCloudinary(buffer, {
+  folder = 'dukan-bari',
+  resourceType = 'image',
+  existingUrl = null,
+  oldUrl = null,
+  publicId = null,
+  overwrite = true,
+  invalidate = true
+} = {}) {
+  const targetPublicId = publicId || extractPublicId(existingUrl || oldUrl);
+
   if (isConfigured) {
     return new Promise((resolve, reject) => {
+      const uploadOptions = {
+        resource_type: resourceType,
+        transformation: resourceType === 'image' ? [{ quality: 'auto', fetch_format: 'auto' }] : []
+      };
+
+      if (targetPublicId) {
+        // Overwrite existing asset in place with the same publicId
+        uploadOptions.public_id = targetPublicId;
+        uploadOptions.overwrite = true;
+        uploadOptions.invalidate = true;
+      } else {
+        uploadOptions.folder = folder;
+      }
+
       const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder,
-          resource_type: resourceType,
-          transformation: resourceType === 'image' ? [{ quality: 'auto', fetch_format: 'auto' }] : []
-        },
+        uploadOptions,
         (error, result) => {
           if (error) return reject(error);
+          console.log(`[Cloudinary] ${targetPublicId ? 'Replaced/Overwritten' : 'Uploaded'} asset: ${result.public_id}`);
           resolve({
             url: result.secure_url || result.url,
             publicId: result.public_id,
@@ -70,6 +119,8 @@ async function uploadToCloudinary(buffer, { folder = 'dukan-bari', resourceType 
 module.exports = {
   cloudinary,
   uploadToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId,
   isConfigured
 };
 

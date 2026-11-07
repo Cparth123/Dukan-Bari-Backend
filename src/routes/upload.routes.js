@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { uploadImage, uploadVideo, uploadMedia } = require('../middleware/upload');
-const { uploadToCloudinary } = require('../config/cloudinary');
+const { uploadToCloudinary, deleteFromCloudinary, extractPublicId } = require('../config/cloudinary');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 
 // 1. Upload Single Image (Products, Avatars, Store Banners) - supports Multipart & Base64 JSON
+// Automatically overwrites/replaces existing image if existing_url or old_url is passed
 router.post('/image', optionalAuth, (req, res, next) => {
   uploadImage.single('file')(req, res, (err) => {
     // If multer error (e.g. content-type application/json), continue to check body
@@ -26,10 +27,15 @@ router.post('/image', optionalAuth, (req, res, next) => {
       return res.status(400).json({ success: false, error: 'No image file or base64 payload provided' });
     }
 
-    const folder = req.body?.folder || 'dukan-bari/images';
+    const folder = req.body?.folder || req.query?.folder || 'dukan-bari/images';
+    const existingUrl = req.body?.existing_url || req.body?.old_url || req.body?.existingUrl || req.body?.oldUrl || req.query?.existing_url || null;
+    const publicId = req.body?.public_id || req.body?.publicId || req.query?.public_id || null;
+
     const result = await uploadToCloudinary(fileBuffer, {
       folder,
-      resourceType: 'image'
+      resourceType: 'image',
+      existingUrl,
+      publicId
     });
 
     return res.json({
@@ -37,11 +43,26 @@ router.post('/image', optionalAuth, (req, res, next) => {
       url: result.url,
       publicId: result.publicId,
       format: result.format,
-      bytes: result.bytes
+      bytes: result.bytes,
+      overwritten: Boolean(existingUrl || publicId)
     });
   } catch (err) {
     console.error('[Upload] Image upload error:', err.message);
     return res.status(500).json({ success: false, error: 'Upload failed: ' + err.message });
+  }
+});
+
+// Delete an existing image from Cloudinary
+router.delete('/', optionalAuth, async (req, res) => {
+  try {
+    const urlOrPublicId = req.body?.url || req.body?.image_url || req.body?.public_id || req.query?.url;
+    if (!urlOrPublicId) {
+      return res.status(400).json({ success: false, error: 'url or public_id parameter is required' });
+    }
+    const deleted = await deleteFromCloudinary(urlOrPublicId);
+    return res.json({ success: true, deleted });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

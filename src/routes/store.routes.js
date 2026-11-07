@@ -3,6 +3,7 @@ const router = express.Router();
 const { Store, Product, Review } = require('../models');
 const { requireAuth, requireRole, optionalAuth } = require('../middleware/auth');
 const { getIO } = require('../socket');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 // 1. Hyperlocal Store Discovery Radar
 router.get('/', optionalAuth, async (req, res) => {
@@ -96,6 +97,14 @@ router.put('/:id', requireAuth, requireRole('dukandar', 'superadmin'), async (re
 
     if (req.user.role !== 'superadmin' && store.owner_id !== req.user.id) {
       return res.status(403).json({ success: false, error: 'You are not authorized to edit this store' });
+    }
+
+    // If replacing banner or logo, delete the old Cloudinary asset to prevent duplicates
+    if (req.body.banner_url && store.banner_url && req.body.banner_url !== store.banner_url) {
+      deleteFromCloudinary(store.banner_url).catch(() => {});
+    }
+    if (req.body.logo_url && store.logo_url && req.body.logo_url !== store.logo_url) {
+      deleteFromCloudinary(store.logo_url).catch(() => {});
     }
 
     const updated = await Store.update(req.params.id, req.body);

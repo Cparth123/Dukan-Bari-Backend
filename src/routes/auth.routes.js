@@ -5,6 +5,7 @@ const { User, Store, Product, Offer, Conversation, Message, Review } = require('
 const { db } = require('../config/firebase');
 const { generateToken, requireAuth } = require('../middleware/auth');
 const { verifyGoogleToken } = require('../services/googleAuth');
+const { deleteFromCloudinary } = require('../config/cloudinary');
 
 // 1. Register User (Customer or Dukandar)
 router.post('/register', async (req, res) => {
@@ -234,7 +235,13 @@ router.put('/profile', requireAuth, async (req, res) => {
     if (address !== undefined) updates.address = String(address).trim();
     if (latitude !== undefined) updates.latitude = Number(latitude);
     if (longitude !== undefined) updates.longitude = Number(longitude);
-    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+    if (avatar_url !== undefined) {
+      updates.avatar_url = avatar_url;
+      // If updating with a new image, delete the old image from Cloudinary to prevent duplicates
+      if (req.user.avatar_url && req.user.avatar_url !== avatar_url) {
+        deleteFromCloudinary(req.user.avatar_url).catch(() => {});
+      }
+    }
 
     const updatedUser = await User.update(userId, updates);
 
@@ -250,8 +257,18 @@ router.put('/profile', requireAuth, async (req, res) => {
         if (phone !== undefined) storeUpdates.phone = String(phone).trim();
         if (latitude !== undefined) storeUpdates.latitude = Number(latitude);
         if (longitude !== undefined) storeUpdates.longitude = Number(longitude);
-        if (banner_url !== undefined) storeUpdates.banner_url = banner_url;
-        if (logo_url !== undefined) storeUpdates.logo_url = logo_url;
+        if (banner_url !== undefined) {
+          storeUpdates.banner_url = banner_url;
+          if (store.banner_url && store.banner_url !== banner_url) {
+            deleteFromCloudinary(store.banner_url).catch(() => {});
+          }
+        }
+        if (logo_url !== undefined) {
+          storeUpdates.logo_url = logo_url;
+          if (store.logo_url && store.logo_url !== logo_url) {
+            deleteFromCloudinary(store.logo_url).catch(() => {});
+          }
+        }
 
         if (Object.keys(storeUpdates).length > 0) {
           updatedStore = await Store.update(store.id, storeUpdates);
