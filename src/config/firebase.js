@@ -293,18 +293,37 @@ const proxyDb = {
         };
       },
       orderBy: (field, dir) => {
-        try {
-          return realCol.orderBy(field, dir);
-        } catch {
-          return mockDb.collection(name).orderBy(field, dir);
-        }
+        if (!liveDb || isMock) return mockDb.collection(name).orderBy(field, dir);
+        return {
+          limit: (n) => mockDb.collection(name).orderBy(field, dir).limit(n),
+          get: async () => {
+            try {
+              return await realCol.orderBy(field, dir).get();
+            } catch (err) {
+              if (err.code === 5 || err.message?.includes('NOT_FOUND')) {
+                isMock = true;
+                return mockDb.collection(name).orderBy(field, dir).get();
+              }
+              throw err;
+            }
+          }
+        };
       },
       limit: (n) => {
-        try {
-          return realCol.limit(n);
-        } catch {
-          return mockDb.collection(name).limit(n);
-        }
+        if (!liveDb || isMock) return mockDb.collection(name).limit(n);
+        return {
+          get: async () => {
+            try {
+              return await realCol.limit(n).get();
+            } catch (err) {
+              if (err.code === 5 || err.message?.includes('NOT_FOUND')) {
+                isMock = true;
+                return mockDb.collection(name).limit(n).get();
+              }
+              throw err;
+            }
+          }
+        };
       },
       get: async () => {
         try {

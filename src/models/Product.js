@@ -265,7 +265,7 @@ class ProductModel {
         }
       `;
       const res = await executeDataConnect(q);
-      if (res.data?.products && res.data.products.length > 0) {
+      if (Array.isArray(res.data?.products)) {
         return res.data.products.map(p => ({
           id: p.id,
           store_id: p.storeId,

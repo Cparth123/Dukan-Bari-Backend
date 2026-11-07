@@ -72,7 +72,8 @@ class StoreModel {
         }
       `;
       const res = await executeDataConnect(q, { id: formattedId });
-      if (res.data?.stores && res.data.stores.length > 0) {
+      if (Array.isArray(res.data?.stores)) {
+        if (res.data.stores.length === 0) return null;
         const s = res.data.stores[0];
         const cachedDoc = await db.collection(COLLECTION).doc(String(s.id)).get();
         const cached = cachedDoc.exists ? cachedDoc.data() : {};
@@ -148,7 +149,8 @@ class StoreModel {
         }
       `;
       const res = await executeDataConnect(q, { ownerId: formattedOwnerId });
-      if (res.data?.stores && res.data.stores.length > 0) {
+      if (Array.isArray(res.data?.stores)) {
+        if (res.data.stores.length === 0) return null;
         const s = res.data.stores[0];
         const cachedDoc = await db.collection(COLLECTION).doc(String(s.id)).get();
         const cached = cachedDoc.exists ? cachedDoc.data() : {};
@@ -345,7 +347,7 @@ class StoreModel {
         }
       `;
       const res = await executeDataConnect(q);
-      if (res.data?.stores && res.data.stores.length > 0) {
+      if (Array.isArray(res.data?.stores)) {
         let stores = res.data.stores.map(s => ({
           id: s.id,
           owner_id: s.ownerId,

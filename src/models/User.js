@@ -47,7 +47,8 @@ class UserModel {
         }
       `;
       const res = await executeDataConnect(q, { id: formattedId });
-      if (res.data?.users && res.data.users.length > 0) {
+      if (Array.isArray(res.data?.users)) {
+        if (res.data.users.length === 0) return null;
         const u = res.data.users[0];
         const cached = await db.collection(COLLECTION).doc(String(id)).get();
         const cachedData = cached.exists ? cached.data() : {};
@@ -99,7 +100,8 @@ class UserModel {
         }
       `;
       const res = await executeDataConnect(q, { email: cleanEmail });
-      if (res.data?.users && res.data.users.length > 0) {
+      if (Array.isArray(res.data?.users)) {
+        if (res.data.users.length === 0) return null;
         const u = res.data.users[0];
         const cached = await db.collection(COLLECTION).doc(String(u.id)).get();
         const cachedData = cached.exists ? cached.data() : {};
@@ -154,7 +156,8 @@ class UserModel {
         }
       `;
       const res = await executeDataConnect(q, { phone: cleanPhone });
-      if (res.data?.users && res.data.users.length > 0) {
+      if (Array.isArray(res.data?.users)) {
+        if (res.data.users.length === 0) return null;
         const u = res.data.users[0];
         const cached = await db.collection(COLLECTION).doc(String(u.id)).get();
         const cachedData = cached.exists ? cached.data() : {};
