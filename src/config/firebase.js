@@ -9,35 +9,58 @@ let isMock = false;
 // 1. Load serviceAccountKey.json if present
 const serviceAccountPaths = [
   path.join(__dirname, '../../serviceAccountKey.json'),
+  path.join(__dirname, '../serviceAccountKey.json'),
   path.join(__dirname, 'serviceAccountKey.json'),
   process.env.FIREBASE_SERVICE_ACCOUNT_PATH
 ].filter(Boolean);
 
 let serviceAccount = null;
-for (const p of serviceAccountPaths) {
-  if (fs.existsSync(p)) {
-    try {
-      serviceAccount = JSON.parse(fs.readFileSync(p, 'utf8'));
-      console.log(`[Firebase] Loaded service account from ${p} (Project: ${serviceAccount.project_id || serviceAccount.projectId})`);
-      break;
-    } catch (e) {
-      console.warn(`[Firebase] Could not parse ${p}:`, e.message);
+
+// Try loading from environment variable JSON or base64 string
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+  try {
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+    const jsonStr = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+    serviceAccount = JSON.parse(jsonStr);
+    console.log(`[Firebase] Loaded service account from FIREBASE_SERVICE_ACCOUNT_KEY env var (Project: ${serviceAccount.project_id || serviceAccount.projectId})`);
+  } catch (e) {
+    console.warn('[Firebase] Could not parse FIREBASE_SERVICE_ACCOUNT_KEY env var:', e.message);
+  }
+}
+
+if (!serviceAccount) {
+  for (const p of serviceAccountPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        serviceAccount = JSON.parse(fs.readFileSync(p, 'utf8'));
+        console.log(`[Firebase] Loaded service account from ${p} (Project: ${serviceAccount.project_id || serviceAccount.projectId})`);
+        break;
+      } catch (e) {
+        console.warn(`[Firebase] Could not parse ${p}:`, e.message);
+      }
     }
   }
 }
 
-// 2. Or initialize from environment variables
+// 2. Or initialize from separate individual environment variables
 if (!serviceAccount && process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
   serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
   };
-  console.log('[Firebase] Loaded service account from environment variables');
+  console.log('[Firebase] Loaded service account from individual environment variables');
 }
 
 // In-Memory Database Implementation for Zero-Crash Offline / Pre-Provisioned Mode
 const memoryStore = new Map();
+
+function clearAllCache() {
+  const count = memoryStore.size;
+  memoryStore.clear();
+  console.log(`[Firebase Cache] Purged in-memory cache across all ${count} collections.`);
+  return { purgedCollections: count };
+}
 
 class MockDocRef {
   constructor(collectionName, id) {
@@ -311,5 +334,7 @@ module.exports = {
   admin,
   db: proxyDb,
   clientConfig,
-  get isMock() { return isMock; }
+  get isMock() { return isMock; },
+  clearAllCache,
+  getServiceAccount: () => serviceAccount
 };

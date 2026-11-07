@@ -8,14 +8,37 @@ try {
   admin = require(path.join(__dirname, '../../node_modules/firebase-admin'));
 }
 
-const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
-let serviceAccount = null;
+const { getServiceAccount } = require('./firebase');
 
-if (fs.existsSync(serviceAccountPath)) {
+const serviceAccountPaths = [
+  path.join(__dirname, '../../serviceAccountKey.json'),
+  path.join(__dirname, '../serviceAccountKey.json'),
+  path.join(__dirname, 'serviceAccountKey.json'),
+  process.env.FIREBASE_SERVICE_ACCOUNT_PATH
+].filter(Boolean);
+
+let serviceAccount = getServiceAccount ? getServiceAccount() : null;
+
+if (!serviceAccount && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
   try {
-    serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY.trim();
+    const jsonStr = raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+    serviceAccount = JSON.parse(jsonStr);
   } catch (e) {
-    console.warn('[DataConnect] Could not read serviceAccountKey.json:', e.message);
+    console.warn('[DataConnect] Could not parse FIREBASE_SERVICE_ACCOUNT_KEY:', e.message);
+  }
+}
+
+if (!serviceAccount) {
+  for (const p of serviceAccountPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        serviceAccount = JSON.parse(fs.readFileSync(p, 'utf8'));
+        break;
+      } catch (e) {
+        console.warn(`[DataConnect] Could not read ${p}:`, e.message);
+      }
+    }
   }
 }
 

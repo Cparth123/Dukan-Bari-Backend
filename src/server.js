@@ -63,6 +63,15 @@ app.get('/health', (req, res) => {
 });
 
 // 5. Mount API Routes
+app.all(['/api/reset-database', '/api/dev/reset-database'], (req, res) => {
+  const { clearAllCache } = require('./config/firebase');
+  const cacheResult = clearAllCache ? clearAllCache() : { purgedCollections: 0 };
+  return res.json({
+    success: true,
+    message: 'Database memory cache wiped clean. All stale stores, users, and sessions have been reset.',
+    details: cacheResult
+  });
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/products', productRoutes);

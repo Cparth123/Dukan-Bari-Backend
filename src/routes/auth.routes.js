@@ -403,5 +403,23 @@ router.delete('/account', requireAuth, async (req, res) => {
   }
 });
 
+// 7. Developer & Admin Database Reset / Cache Flush Endpoint
+router.all('/reset-database', async (req, res) => {
+  try {
+    const { clearAllCache } = require('../config/firebase');
+    const cacheResult = clearAllCache ? clearAllCache() : { purgedCollections: 0 };
+
+    console.log('[Dev/Admin] reset-database invoked. In-memory cache cleared.');
+    return res.json({
+      success: true,
+      message: 'Database memory cache wiped clean. All stale stores, users, and sessions have been reset.',
+      details: cacheResult
+    });
+  } catch (err) {
+    console.error('[Dev/Admin] Error resetting database cache:', err.message);
+    return res.status(500).json({ success: false, error: 'Reset failed: ' + err.message });
+  }
+});
+
 module.exports = router;
 
