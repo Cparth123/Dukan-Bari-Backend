@@ -139,57 +139,69 @@ class UserModel {
   static async findByPhone(phone) {
     if (!phone) return null;
     const cleanPhone = String(phone).trim();
+    const digits = cleanPhone.replace(/\D/g, '').slice(-10);
+
+    const candidates = [cleanPhone];
+    if (digits && digits.length === 10) {
+      if (!candidates.includes(digits)) candidates.push(digits);
+      if (!candidates.includes(`+91${digits}`)) candidates.push(`+91${digits}`);
+      if (!candidates.includes(`91${digits}`)) candidates.push(`91${digits}`);
+    }
 
     // 1. Try Firebase Data Connect
     try {
-      const q = `
-        query FindUserByPhone($phone: String!) {
-          users(where: { phone: { eq: $phone } }, limit: 1) {
-            id
-            fullName
-            email
-            phone
-            role
-            avatarUrl
-            createdAt
+      for (const cand of candidates) {
+        const q = `
+          query FindUserByPhone($phone: String!) {
+            users(where: { phone: { eq: $phone } }, limit: 1) {
+              id
+              fullName
+              email
+              phone
+              role
+              avatarUrl
+              createdAt
+            }
           }
-        }
-      `;
-      const res = await executeDataConnect(q, { phone: cleanPhone });
-      if (Array.isArray(res.data?.users)) {
-        if (res.data.users.length === 0) return null;
-        const u = res.data.users[0];
-        const cached = await db.collection(COLLECTION).doc(String(u.id)).get();
-        const cachedData = cached.exists ? cached.data() : {};
+        `;
+        const res = await executeDataConnect(q, { phone: cand });
+        if (Array.isArray(res.data?.users) && res.data.users.length > 0) {
+          const u = res.data.users[0];
+          const cached = await db.collection(COLLECTION).doc(String(u.id)).get();
+          const cachedData = cached.exists ? cached.data() : {};
 
-        const userObj = {
-          id: u.id,
-          email: u.email,
-          phone: u.phone,
-          phone_number: u.phone,
-          full_name: u.fullName,
-          name: u.fullName,
-          role: u.role,
-          address: cachedData.address || '',
-          latitude: cachedData.latitude !== undefined ? cachedData.latitude : null,
-          longitude: cachedData.longitude !== undefined ? cachedData.longitude : null,
-          avatar_url: u.avatarUrl,
-          password_hash: cachedData.password_hash || null,
-          created_at: u.createdAt
-        };
-        await db.collection(COLLECTION).doc(String(u.id)).set(userObj, { merge: true });
-        return userObj;
+          const userObj = {
+            id: u.id,
+            email: u.email,
+            phone: u.phone,
+            phone_number: u.phone,
+            full_name: u.fullName,
+            name: u.fullName,
+            role: u.role,
+            address: cachedData.address || '',
+            latitude: cachedData.latitude !== undefined ? cachedData.latitude : null,
+            longitude: cachedData.longitude !== undefined ? cachedData.longitude : null,
+            avatar_url: u.avatarUrl,
+            password_hash: cachedData.password_hash || null,
+            created_at: u.createdAt
+          };
+          await db.collection(COLLECTION).doc(String(u.id)).set(userObj, { merge: true });
+          return userObj;
+        }
       }
     } catch (err) {
       console.warn('[Firebase DataConnect] findByPhone notice:', err.message);
     }
 
     // 2. Fallback to local store / Firestore
-    const snap = await db.collection(COLLECTION)
-      .where('phone', '==', cleanPhone)
-      .limit(1)
-      .get();
-    return !snap.empty ? snap.docs[0].data() : null;
+    for (const cand of candidates) {
+      const snap = await db.collection(COLLECTION)
+        .where('phone', '==', cand)
+        .limit(1)
+        .get();
+      if (!snap.empty) return snap.docs[0].data();
+    }
+    return null;
   }
 
   static async create(userData) {

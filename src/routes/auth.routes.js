@@ -90,15 +90,20 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, phone, password } = req.body;
-    const identifier = email || phone;
+    const identifier = String(email || phone || '').trim();
 
     if (!identifier) {
       return res.status(400).json({ success: false, error: 'Please enter your email or phone number.' });
     }
 
     let user = null;
-    if (email) user = await User.findByEmail(email);
-    if (!user && phone) user = await User.findByPhone(phone);
+    if (identifier.includes('@')) {
+      user = await User.findByEmail(identifier);
+      if (!user && phone) user = await User.findByPhone(phone);
+    } else {
+      user = await User.findByPhone(identifier);
+      if (!user && email) user = await User.findByEmail(email);
+    }
 
     if (!user) {
       return res.status(401).json({ success: false, error: 'Account not found. Please sign up first.' });
@@ -110,10 +115,31 @@ router.post('/login', async (req, res) => {
       if (!isMatch) {
         return res.status(401).json({ success: false, error: 'Invalid password. Please try again.' });
       }
+    } else if (!user.password_hash && password) {
+      // First password set for accounts created directly in console/cloud sql
+      try {
+        const passwordHash = await bcrypt.hash(password, 10);
+        await User.update(user.id, { password_hash: passwordHash });
+        user.password_hash = passwordHash;
+      } catch (e) {
+        // Soft fail
+      }
     }
 
     const token = generateToken(user);
-    const store = user.role === 'dukandar' ? await Store.findByOwnerId(user.id) : null;
+    let store = user.role === 'dukandar' ? await Store.findByOwnerId(user.id) : null;
+    if (user.role === 'dukandar' && !store) {
+      try {
+        store = await Store.create({
+          owner_id: user.id,
+          name: `${user.full_name || 'Partner'}'s Dukan`,
+          category: 'Grocery',
+          phone: user.phone || ''
+        });
+      } catch (storeErr) {
+        console.warn('[Auth] Auto store init notice:', storeErr.message);
+      }
+    }
 
     return res.json({
       success: true,
